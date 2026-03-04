@@ -1,3 +1,4 @@
+
 # research_plan.yaml — ESS Research
 #
 # model_status:
@@ -51,6 +52,10 @@ config:
   lora_alpha: 16.0
   lora_dropout: 0.1
 
+  # Prompt mode — which SAM3 prompt type(s) to use
+  # "text" | "box" | "point" | "all"
+  prompt_mode: "text"
+
   # Trainer precision — "32-true" for zero-shot; "16-mixed" for LoRA to save VRAM
   precision: "32-true"
 
@@ -83,13 +88,42 @@ hypotheses:
         fold: 3
 
   - id: H3
-    title: "LoRA Fine-tuning — Within-domain Cadaver (C→C)"
+    title: "LoRA Fine-tuning — Within-domain (C→C and L→L)"
     hypothesis: >
-      LoRA-fine-tuned SAM3 on cadaver training data should correct
-      over-segmentation (zero-shot precision was 0.445) by adapting
-      attention projections to surgical instrument appearance.
-    expected: "Dice > 0.80 (SOTA: HFRF-Net 0.9374)"
-    config: {zero_shot: false, use_lora: true, batch_size: 2, precision: "16-mixed"}
+      LoRA-fine-tuned SAM3 should correct zero-shot over-segmentation
+      (C→C precision 0.445; L→L precision ~0.40) by adapting attention
+      projections to surgical instrument appearance within each domain.
+      C→C uses a single fixed split (train S01-S07, val S08, test S09-S10).
+      L→L uses 3-fold CV (each fold holds out one of L01/L02/L03 as test).
+    expected: "Dice > 0.80 on C→C; Dice > 0.70 mean across L→L folds (SOTA: HFRF-Net 0.9374)"
+    config: {zero_shot: false, use_lora: true, batch_size: 8, precision: "16-mixed"}
+    experiments:
+      - experiment: "C->C"
+        fold: 1                        # fold ignored for C->C; split is fixed
+      - experiment: "L->L"
+        fold: 1
+      - experiment: "L->L"
+        fold: 2
+      - experiment: "L->L"
+        fold: 3
+
+  - id: H4
+    title: "Prompt Type Ablation — LoRA C→C (box / point / all)"
+    hypothesis: >
+      SAM3 is a prompt-driven model; box and point prompts derived from GT
+      masks provide stronger spatial guidance than text alone.
+      We expect: all > box > point > text in Dice, with box prompts giving
+      the largest gain (SAM2 lineage is primarily box-conditioned).
+      Text-only baseline is H3 C→C fold1 (prompt_mode=text).
+    expected: "box Dice > 0.85; all Dice > 0.90"
+    config: {zero_shot: false, use_lora: true, batch_size: 8, precision: "16-mixed"}
     experiments:
       - experiment: "C->C"
         fold: 1
+        prompt_mode: "box"
+      - experiment: "C->C"
+        fold: 1
+        prompt_mode: "point"
+      - experiment: "C->C"
+        fold: 1
+        prompt_mode: "all"

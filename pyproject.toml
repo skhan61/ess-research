@@ -38,8 +38,8 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [[tool.uv.index]]
-name = "pytorch-cu121"
-url = "https://download.pytorch.org/whl/cu121"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.pytest.ini_options]
@@ -51,5 +51,5 @@ log_cli_format = "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s"
 log_cli_date_format = "%H:%M:%S"
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu121" }]
-torchvision = [{ index = "pytorch-cu121" }]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]

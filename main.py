@@ -22,6 +22,15 @@ import logging
 import os
 from pathlib import Path
 
+# Load .env file (HF_TOKEN, etc.)
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    for _line in _env_path.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 # Prevent HuggingFace tokenizer Rust threads from deadlocking DataLoader workers
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
@@ -74,6 +83,8 @@ def main(
     lora_rank: int = 4,
     lora_alpha: float = 16.0,
     lora_dropout: float = 0.1,
+    # ── Prompt mode ───────────────────────────────────────────────────────────
+    prompt_mode: str = "text",             # "text" | "box" | "point" | "all"
     # ── Trainer precision ─────────────────────────────────────────────────────
     precision: str = "32-true",             # "16-mixed" halves VRAM for LoRA training
     # ── Checkpoint / reproduce (optional — None means not provided) ───────────
@@ -135,12 +146,14 @@ def main(
         logger.info("W&B enabled — project=%s  run=%s", wandb_project, run_name)
 
     # ── 4. Model ──────────────────────────────────────────────────────────────
+    logger.info("Prompt mode: %s", prompt_mode)
     _model = SAM3Model(
         image_size=image_size,
         use_lora=use_lora,
         lora_rank=lora_rank,
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
+        prompt_mode=prompt_mode,
     )
     if ckpt_path:
         logger.info("Loading checkpoint: %s", ckpt_path)

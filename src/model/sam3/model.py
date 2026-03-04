@@ -27,6 +27,9 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+VALID_PROMPT_MODES = {"text", "box", "point", "all"}
+
+
 class SAM3Model(BaseSegmentationModel):
     """
     SAM3 surgical instrument segmentation model.
@@ -43,6 +46,11 @@ class SAM3Model(BaseSegmentationModel):
         lora_rank:        LoRA rank r (ignored when use_lora=False).
         lora_alpha:       LoRA scaling alpha (ignored when use_lora=False).
         lora_dropout:     Dropout on LoRA paths (ignored when use_lora=False).
+        prompt_mode:      Which prompt type(s) to pass to SAM3.
+                          "text"  — text prompt only (default).
+                          "box"   — bounding-box prompt only.
+                          "point" — centre-of-mass point prompt only.
+                          "all"   — text + box + point combined.
         pretrained_model: HuggingFace model ID.
     """
 
@@ -53,10 +61,15 @@ class SAM3Model(BaseSegmentationModel):
         lora_rank: int = 4,
         lora_alpha: float = 16.0,
         lora_dropout: float = 0.1,
+        prompt_mode: str = "text",
         pretrained_model: str = "facebook/sam3",
     ) -> None:
         super().__init__()
         self.image_size = image_size
+        assert prompt_mode in VALID_PROMPT_MODES, (
+            f"prompt_mode must be one of {VALID_PROMPT_MODES}, got '{prompt_mode}'"
+        )
+        self.prompt_mode = prompt_mode
 
         assert image_size % 14 == 0, (
             f"image_size={image_size} must be divisible by ViT patch_size=14. "
@@ -108,7 +121,9 @@ class SAM3Model(BaseSegmentationModel):
         Args:
             batch: collated batch dict from SinusSurgeryDataset.
                    Required keys: ``image`` (B, 3, H, W) float32,
-                                  ``text_prompt`` list[str].
+                                  ``text_prompt``  list[str]         — always present.
+                                  ``box_prompt``   LongTensor (B, 4) — used when prompt_mode in {"box", "all"}.
+                                  ``point_prompt`` LongTensor (B, 2) — used when prompt_mode in {"point", "all"}.
 
         Returns:
             Mask logits FloatTensor (B, 1, H, W).
@@ -120,17 +135,38 @@ class SAM3Model(BaseSegmentationModel):
         if self.__processor is None:
             self.__processor = Sam3Processor.from_pretrained(self._pretrained_model)
 
-        text_enc = self.__processor(
-            text=list(batch["text_prompt"]),
-            return_tensors="pt",
-            padding=True,
-        ).to(device)
+        use_text  = self.prompt_mode in ("text", "all")
+        use_box   = self.prompt_mode in ("box",  "all")
+        use_point = self.prompt_mode in ("point", "all")
 
-        outputs = self.sam3(
-            pixel_values=batch["image"],  # (B, 3, H, W), SAM3-normalised
-            input_ids=text_enc.input_ids,
-            attention_mask=text_enc.attention_mask,
-        )
+        # Build processor kwargs — only include active prompt types.
+        proc_kwargs: dict = {"return_tensors": "pt", "padding": True}
+        if use_text:
+            proc_kwargs["text"] = list(batch["text_prompt"])
+        if use_box:
+            # processor expects (B, 1, 4) float
+            proc_kwargs["input_boxes"] = batch["box_prompt"].unsqueeze(1).float()
+        if use_point:
+            # processor expects input_points (B, 1, 1, 2) and input_labels (B, 1, 1)
+            proc_kwargs["input_points"] = batch["point_prompt"].unsqueeze(1).unsqueeze(1).float()
+            proc_kwargs["input_labels"] = torch.ones(
+                batch["point_prompt"].shape[0], 1, 1,
+                dtype=torch.long, device=device,
+            )
+
+        enc = self.__processor(**proc_kwargs).to(device)
+
+        model_kwargs: dict = {"pixel_values": batch["image"]}
+        if use_text:
+            model_kwargs["input_ids"] = enc.input_ids
+            model_kwargs["attention_mask"] = enc.attention_mask
+        if use_box:
+            model_kwargs["input_boxes"] = enc.input_boxes
+        if use_point:
+            model_kwargs["input_points"] = enc.input_points
+            model_kwargs["input_labels"] = enc.input_labels
+
+        outputs = self.sam3(**model_kwargs)
 
         # semantic_seg: (B, 1, H', W') — resize to dataset image_size if needed
         seg: torch.Tensor = outputs.semantic_seg
