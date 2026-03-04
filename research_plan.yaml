@@ -1,0 +1,95 @@
+# research_plan.yaml — ESS Research
+#
+# model_status:
+#   stub  → 3-conv placeholder  (pipeline validation only — results ~random)
+#   sam3  → real SAM3 (zero-shot, all weights frozen)
+#   lora  → SAM3 + LoRA fine-tuning
+#
+# Per-hypothesis config: keys under hypothesis.config override global config.
+# Priority: global < hypothesis.config < experiment keys.
+
+project: "SAM3 + LoRA Fine-tuning for Surgical Instrument Segmentation"
+dataset: "UW-Sinus-Surgery-CL (cadaver=4345 frames, live=4658 frames)"
+primary_metric: "test/dice"
+model_status: "lora"
+baseline: {method: "HFRF-Net", dice: 0.9374}
+
+# ── Global run config — all parameters for every experiment ───────────────────
+config:
+  # Data
+  data_root: "data/uw-sinus-surgery-CL"
+  image_size: 336                    # must be divisible by ViT patch_size=14
+  text_prompt: "surgical instrument"
+  batch_size: 8
+  num_workers: null                  # null → os.cpu_count() at runtime
+  pin_memory: true
+
+  # Training
+  max_epochs: 50
+  lr: 0.0001
+  loss: "combo"                      # bce | dice | combo | focal
+  early_stopping_patience: 10
+
+  # Output
+  save_dir: "outputs"
+  save_predictions: true
+  vis_samples: 8
+
+  # Logging
+  log_level: "INFO"
+
+  # W&B
+  use_wandb: false
+  wandb_project: "ess-research"
+
+  # Mode (defaults — hypotheses override via their own config: block)
+  zero_shot: false                   # default: training mode
+  use_lora: false                    # default off; H3+ overrides to true
+
+  # LoRA hyperparameters (only active when use_lora: true)
+  lora_rank: 4
+  lora_alpha: 16.0
+  lora_dropout: 0.1
+
+  # Trainer precision — "32-true" for zero-shot; "16-mixed" for LoRA to save VRAM
+  precision: "32-true"
+
+hypotheses:
+
+  - id: H1
+    title: "Zero-shot SAM3 — Within-domain Cadaver"
+    hypothesis: >
+      Zero-shot SAM3 evaluated on cadaver data establishes a baseline.
+      Expected to over-segment (high recall, low precision).
+    expected: "Dice > 0.50 zero-shot; > 0.80 after LoRA"
+    config: {zero_shot: true, use_lora: false}   # results exist → auto-skipped
+    experiments:
+      - experiment: "C->C"
+        fold: 1                        # fold ignored for C->C; split is fixed
+
+  - id: H2
+    title: "Zero-shot SAM3 — Within-domain Live (3-fold CV)"
+    hypothesis: >
+      Zero-shot SAM3 on live surgical video; live data harder than cadaver
+      due to blood, smoke, motion blur. Dice expected lower than cadaver.
+    expected: "Dice > 0.40 zero-shot"
+    config: {zero_shot: true, use_lora: false}   # results exist → auto-skipped
+    experiments:
+      - experiment: "L->L"
+        fold: 1
+      - experiment: "L->L"
+        fold: 2
+      - experiment: "L->L"
+        fold: 3
+
+  - id: H3
+    title: "LoRA Fine-tuning — Within-domain Cadaver (C→C)"
+    hypothesis: >
+      LoRA-fine-tuned SAM3 on cadaver training data should correct
+      over-segmentation (zero-shot precision was 0.445) by adapting
+      attention projections to surgical instrument appearance.
+    expected: "Dice > 0.80 (SOTA: HFRF-Net 0.9374)"
+    config: {zero_shot: false, use_lora: true, batch_size: 2, precision: "16-mixed"}
+    experiments:
+      - experiment: "C->C"
+        fold: 1

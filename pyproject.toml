@@ -1,0 +1,55 @@
+[project]
+name = "ess-research"
+version = "0.1.0"
+description = "SAM3 + LoRA fine-tuning for endoscopic sinus surgery instrument segmentation"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.3.0",
+    "torchvision>=0.18.0",
+    "lightning>=2.3.0",
+    "peft>=0.11.0",
+    "scipy>=1.11.0",
+    "pillow>=10.0.0",
+    "numpy>=1.26.0",
+    "matplotlib>=3.8.0",
+    "opencv-python>=4.9.0",
+    "transformers>=4.40.0",
+    "huggingface-hub>=0.23.0",
+    "wandb>=0.17.0",
+    "tqdm>=4.66.0",
+    "fire>=0.6.0",
+    "monai>=1.5.2",
+    "litlogger>=0.1.7",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.0",
+    "jupyter>=1.0.0",
+    "pytest>=9.0.2",
+    "rich>=13.7.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s"
+log_cli_date_format = "%H:%M:%S"
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu121" }]
+torchvision = [{ index = "pytorch-cu121" }]

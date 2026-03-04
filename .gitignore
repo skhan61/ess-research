@@ -1,0 +1,27 @@
+# Dataset — large files, not tracked in git
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+__MACOSX/
+
+# Experiments / outputs
+outputs/
+checkpoints/
+runs/
+wandb/
+
+# Secrets — never commit
+.env
