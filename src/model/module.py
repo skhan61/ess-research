@@ -54,7 +54,12 @@ class SinusSurgeryModule(L.LightningModule):
         self.vis_dir = Path(vis_dir) if vis_dir is not None else None
         self.vis_samples = vis_samples
 
-        self.save_hyperparameters(ignore=["model", "loss_fn"])
+        # Convert vis_dir to str before saving hparams — PyTorch 2.6 torch.load
+        # defaults to weights_only=True and rejects pathlib.PosixPath as an
+        # unsafe global, causing UnpicklingError when loading checkpoints.
+        if vis_dir is not None:
+            self._hparams_vis_dir = str(vis_dir)
+        self.save_hyperparameters(ignore=["model", "loss_fn", "vis_dir"])
 
         # Loss — default to Dice+BCE combined (best for imbalanced medical seg)
         self._loss_fn: nn.Module = loss_fn if loss_fn is not None else CombinedLoss()

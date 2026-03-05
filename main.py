@@ -34,9 +34,21 @@ if _env_path.exists():
 # Prevent HuggingFace tokenizer Rust threads from deadlocking DataLoader workers
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+# Disable W&B by default — overridden inside main() if use_wandb=True
+os.environ.setdefault("WANDB_MODE", "disabled")
+
+import pathlib
+
 import fire
 import lightning as L
 import torch
+
+# PyTorch 2.6 changed torch.load to default weights_only=True.
+# Lightning checkpoints saved with older code may contain pathlib.PosixPath
+# in hparams (e.g. vis_dir). Register it as a safe global so those
+# checkpoints can still be loaded.
+torch.serialization.add_safe_globals([pathlib.PosixPath])
+torch.set_float32_matmul_precision("high")
 from lightning.pytorch.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
@@ -91,6 +103,10 @@ def main(
     zero_shot: bool = False,
     ckpt_path: str | None = None,
     log_file: str | None = None,
+    # ── Debug — injected by runner --debug; never set manually ───────────────
+    limit_train_batches: int | None = None,
+    limit_val_batches: int | None = None,
+    limit_test_batches: int | None = None,
 ) -> None:
     """SAM3 + LoRA fine-tuning for surgical instrument segmentation."""
 
@@ -203,6 +219,9 @@ def main(
         logger=loggers,
         callbacks=callbacks,
         enable_progress_bar=True,
+        limit_train_batches=limit_train_batches or 1.0,
+        limit_val_batches=limit_val_batches or 1.0,
+        limit_test_batches=limit_test_batches or 1.0,
     )
 
     # ── 7. Fit + Test (or Zero-shot / Test-only from checkpoint) ─────────────

@@ -135,36 +135,42 @@ class SAM3Model(BaseSegmentationModel):
         if self.__processor is None:
             self.__processor = Sam3Processor.from_pretrained(self._pretrained_model)
 
-        use_text  = self.prompt_mode in ("text", "all")
+        # SAM3 always requires text (input_ids). Spatial prompts (box/point) are
+        # additive on top of text — the architecture has no text-free mode.
         use_box   = self.prompt_mode in ("box",  "all")
         use_point = self.prompt_mode in ("point", "all")
 
-        # Build processor kwargs — only include active prompt types.
-        proc_kwargs: dict = {"return_tensors": "pt", "padding": True}
-        if use_text:
-            proc_kwargs["text"] = list(batch["text_prompt"])
+        B = batch["image"].shape[0]
+
+        # Use the processor only for text tokenisation (input_ids / attention_mask).
+        # Spatial prompts are NOT passed through the processor because it requires
+        # actual image pixel data to normalise coordinates; instead we normalise
+        # manually by dividing by image_size to get [0, 1] range, which is what
+        # the SAM3 model expects.
+        enc = self.__processor(
+            text=list(batch["text_prompt"]),
+            return_tensors="pt",
+            padding=True,
+        ).to(device)
+
+        model_kwargs: dict = {
+            "pixel_values": batch["image"],
+            "input_ids": enc.input_ids,
+            "attention_mask": enc.attention_mask,
+        }
         if use_box:
-            # processor expects (B, 1, 4) float
-            proc_kwargs["input_boxes"] = batch["box_prompt"].unsqueeze(1).float()
-        if use_point:
-            # processor expects input_points (B, 1, 1, 2) and input_labels (B, 1, 1)
-            proc_kwargs["input_points"] = batch["point_prompt"].unsqueeze(1).unsqueeze(1).float()
-            proc_kwargs["input_labels"] = torch.ones(
-                batch["point_prompt"].shape[0], 1, 1,
-                dtype=torch.long, device=device,
+            # (B, 1, 4) normalised to [0, 1]
+            model_kwargs["input_boxes"] = (
+                batch["box_prompt"].unsqueeze(1).float() / self.image_size
             )
-
-        enc = self.__processor(**proc_kwargs).to(device)
-
-        model_kwargs: dict = {"pixel_values": batch["image"]}
-        if use_text:
-            model_kwargs["input_ids"] = enc.input_ids
-            model_kwargs["attention_mask"] = enc.attention_mask
-        if use_box:
-            model_kwargs["input_boxes"] = enc.input_boxes
         if use_point:
-            model_kwargs["input_points"] = enc.input_points
-            model_kwargs["input_labels"] = enc.input_labels
+            # (B, 1, 1, 2) normalised to [0, 1]
+            model_kwargs["input_points"] = (
+                batch["point_prompt"].unsqueeze(1).unsqueeze(1).float() / self.image_size
+            )
+            model_kwargs["input_labels"] = torch.ones(
+                B, 1, 1, dtype=torch.long, device=device,
+            )
 
         outputs = self.sam3(**model_kwargs)
 

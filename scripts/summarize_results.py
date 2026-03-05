@@ -46,15 +46,17 @@ def _parse_run_meta(metrics_csv: Path) -> dict[str, str]:
     run_dir    = metrics_csv.parent.name         # e.g. "C_C_fold1"
     hypothesis = metrics_csv.parent.parent.name  # e.g. "H1"
 
-    match = re.match(r"(.+)_fold(\d+)$", run_dir)
+    match = re.match(r"(.+)_fold(\d+)(_.+)?$", run_dir)
     if match:
         experiment = match.group(1).replace("_", "->", 1)  # C_C → C->C
         fold = match.group(2)
+        variant = match.group(3) or ""          # e.g. "_prompt_modebox"
     else:
         experiment = run_dir
         fold = "?"
+        variant = ""
 
-    return {"experiment": experiment, "fold": fold, "hypothesis": hypothesis}
+    return {"experiment": experiment, "fold": fold, "hypothesis": hypothesis, "variant": variant}
 
 
 def _extract_test_row(metrics_csv: Path) -> dict[str, str] | None:
@@ -116,7 +118,7 @@ def main(outputs_dir: str = "outputs") -> None:
         return
 
     # ── Print table ───────────────────────────────────────────────────────────
-    headers = ["hypothesis", "experiment", "fold", "dice", "iou", "precision", "recall", "loss"]
+    headers = ["hypothesis", "experiment", "fold", "variant", "dice", "iou", "precision", "recall", "loss"]
     col_w = {h: max(len(h), max(len(r.get(h, "—")) for r in rows)) for h in headers}
 
     sep = "+" + "+".join("-" * (col_w[h] + 2) for h in headers) + "+"

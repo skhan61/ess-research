@@ -76,10 +76,10 @@ def _load_summary(outputs_dir: Path) -> dict[tuple[str, str, str], dict[str, str
     summary_path = outputs_dir / "summary.csv"
     if not summary_path.exists():
         return {}
-    index: dict[tuple[str, str, str], dict[str, str]] = {}
+    index: dict[tuple[str, str, str, str], dict[str, str]] = {}
     with open(summary_path, newline="") as f:
         for row in csv.DictReader(f):
-            index[(row["hypothesis"], row["experiment"], row["fold"])] = row
+            index[(row["hypothesis"], row["experiment"], row["fold"], row.get("variant", ""))] = row
     return index
 
 
@@ -162,18 +162,22 @@ def main(
         for cfg in exps:
             exp_name = str(cfg["experiment"])
             fold     = str(cfg["fold"])
-            row      = results.get((hid, exp_name, fold))
-            label    = f"{exp_name} fold{fold}"
+            # Build variant suffix from any extra experiment keys (same logic as runner)
+            own_keys = [k for k in cfg if k not in ("experiment", "fold")]
+            extras   = {k: cfg[k] for k in own_keys}
+            variant  = ("_" + "_".join(f"{k}{v}" for k, v in sorted(extras.items()))) if extras else ""
+            row      = results.get((hid, exp_name, fold, variant))
+            label    = f"{exp_name} fold{fold}" + (f" [{' '.join(f'{k}={v}' for k,v in sorted(extras.items()))}]" if extras else "")
 
             if row and row.get("dice", "—") != "—":
-                print(f"      {label:<18}  {_fmt_metrics(row)}")
+                print(f"      {label:<28}  {_fmt_metrics(row)}")
                 try:
                     dice_vals.append(float(row["dice"]))
                 except (ValueError, KeyError):
                     pass
                 complete += 1
             else:
-                print(f"      {label:<18}  (not yet run)")
+                print(f"      {label:<28}  (not yet run)")
 
         # Show average for multi-fold experiments (L→L)
         if len(exps) > 1 and dice_vals:

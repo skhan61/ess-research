@@ -108,13 +108,13 @@ hypotheses:
         fold: 3
 
   - id: H4
-    title: "Prompt Type Ablation — LoRA C→C (box / point / all)"
+    title: "Prompt Type Ablation — LoRA C→C and L→L (box / point / all)"
     hypothesis: >
       SAM3 is a prompt-driven model; box and point prompts derived from GT
       masks provide stronger spatial guidance than text alone.
       We expect: all > box > point > text in Dice, with box prompts giving
       the largest gain (SAM2 lineage is primarily box-conditioned).
-      Text-only baseline is H3 C→C fold1 (prompt_mode=text).
+      Text-only baselines are H3 C→C fold1 and H3 L→L folds (prompt_mode=text).
     expected: "box Dice > 0.85; all Dice > 0.90"
     config: {zero_shot: false, use_lora: true, batch_size: 8, precision: "16-mixed"}
     experiments:
@@ -126,4 +126,31 @@ hypotheses:
         prompt_mode: "point"
       - experiment: "C->C"
         fold: 1
+        prompt_mode: "all"
+      - experiment: "L->L"
+        fold: 1
+        prompt_mode: "box"
+      - experiment: "L->L"
+        fold: 1
+        prompt_mode: "point"
+      - experiment: "L->L"
+        fold: 1
+        prompt_mode: "all"
+      - experiment: "L->L"
+        fold: 2
+        prompt_mode: "box"
+      - experiment: "L->L"
+        fold: 2
+        prompt_mode: "point"
+      - experiment: "L->L"
+        fold: 2
+        prompt_mode: "all"
+      - experiment: "L->L"
+        fold: 3
+        prompt_mode: "box"
+      - experiment: "L->L"
+        fold: 3
+        prompt_mode: "point"
+      - experiment: "L->L"
+        fold: 3
         prompt_mode: "all"
