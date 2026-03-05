@@ -236,4 +236,5 @@ class SinusSurgeryDataset(Dataset):
             "has_instrument": has_instrument,  # bool
             "video_id": self._parse_video_id(img_path.stem),  # "S01"/"L02"
             "stem": img_path.stem,  # "S01_10020"
+            "image_path": str(img_path),  # full absolute path for back-tracing
         }

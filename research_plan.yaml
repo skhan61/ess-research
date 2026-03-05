@@ -154,3 +154,80 @@ hypotheses:
       - experiment: "L->L"
         fold: 3
         prompt_mode: "all"
+
+  - id: H5
+    title: "Consolidated Test Re-evaluation — All Trained Models"
+    hypothesis: >
+      Load the best checkpoint from every H3 and H4 LoRA experiment and
+      re-run the held-out test set. Provides a single consolidated test-dice
+      table across all prompt modes and domains without retraining.
+      In debug mode a mini train→test verifies the pipeline end-to-end
+      (no pre-existing checkpoint required).
+    expected: "Dice scores match corresponding H3 / H4 test metrics."
+    config: {zero_shot: false, use_lora: true, batch_size: 8, precision: "16-mixed"}
+    experiments:
+      # ── From H3 (text prompt, within-domain) ────────────────────────────────
+      - experiment: "C->C"
+        fold: 1
+        source_hypothesis: H3
+      - experiment: "L->L"
+        fold: 1
+        source_hypothesis: H3
+      - experiment: "L->L"
+        fold: 2
+        source_hypothesis: H3
+      - experiment: "L->L"
+        fold: 3
+        source_hypothesis: H3
+      # ── From H4 C->C prompt ablation ────────────────────────────────────────
+      - experiment: "C->C"
+        fold: 1
+        prompt_mode: "box"
+        source_hypothesis: H4
+      - experiment: "C->C"
+        fold: 1
+        prompt_mode: "point"
+        source_hypothesis: H4
+      - experiment: "C->C"
+        fold: 1
+        prompt_mode: "all"
+        source_hypothesis: H4
+      # ── From H4 L->L fold 1 ─────────────────────────────────────────────────
+      - experiment: "L->L"
+        fold: 1
+        prompt_mode: "box"
+        source_hypothesis: H4
+      - experiment: "L->L"
+        fold: 1
+        prompt_mode: "point"
+        source_hypothesis: H4
+      - experiment: "L->L"
+        fold: 1
+        prompt_mode: "all"
+        source_hypothesis: H4
+      # ── From H4 L->L fold 2 ─────────────────────────────────────────────────
+      - experiment: "L->L"
+        fold: 2
+        prompt_mode: "box"
+        source_hypothesis: H4
+      - experiment: "L->L"
+        fold: 2
+        prompt_mode: "point"
+        source_hypothesis: H4
+      - experiment: "L->L"
+        fold: 2
+        prompt_mode: "all"
+        source_hypothesis: H4
+      # ── From H4 L->L fold 3 ─────────────────────────────────────────────────
+      - experiment: "L->L"
+        fold: 3
+        prompt_mode: "box"
+        source_hypothesis: H4
+      - experiment: "L->L"
+        fold: 3
+        prompt_mode: "point"
+        source_hypothesis: H4
+      - experiment: "L->L"
+        fold: 3
+        prompt_mode: "all"
+        source_hypothesis: H4

@@ -102,7 +102,11 @@ def main(
     # ── Checkpoint / reproduce (optional — None means not provided) ───────────
     zero_shot: bool = False,
     ckpt_path: str | None = None,
+    resume_ckpt_path: str | None = None,   # resume interrupted training from last.ckpt
     log_file: str | None = None,
+    # ── Run name override — injected by runner for variant experiments ─────────
+    # Allows prompt_mode / other variant keys to appear in the output directory.
+    run_name_override: str | None = None,
     # ── Debug — injected by runner --debug; never set manually ───────────────
     limit_train_batches: int | None = None,
     limit_val_batches: int | None = None,
@@ -115,7 +119,7 @@ def main(
         log_file=Path(log_file) if log_file else None,
     )
 
-    run_name = f"{experiment.replace('->', '_')}_fold{fold}"
+    run_name = run_name_override or f"{experiment.replace('->', '_')}_fold{fold}"
     logger.info("=" * 60)
     logger.info("ESS Research — %s", run_name)
     logger.info("Device: %s  |  GPU: %s",
@@ -232,7 +236,10 @@ def main(
         logger.info("Test-only mode — skipping training")
         trainer.test(module, datamodule=dm)
     else:
-        trainer.fit(module, datamodule=dm)
+        if resume_ckpt_path:
+            logger.info("Resuming interrupted training from: %s", resume_ckpt_path)
+        trainer.fit(module, datamodule=dm,
+                    ckpt_path=resume_ckpt_path if resume_ckpt_path else None)
         # Use best checkpoint for final test — never last epoch weights
         trainer.test(module, datamodule=dm, ckpt_path="best")
         logger.info("Best checkpoint: %s", trainer.checkpoint_callback.best_model_path)

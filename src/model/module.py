@@ -73,6 +73,9 @@ class SinusSurgeryModule(L.LightningModule):
         self._vis_masks: list[torch.Tensor] = []
         self._vis_logits: list[torch.Tensor] = []
 
+        # Per-image dice scores accumulated during test
+        self._per_image_dice: list[float] = []
+
     # ── Forward ───────────────────────────────────────────────────────────────
 
     def forward(self, batch: dict) -> torch.Tensor:
@@ -117,6 +120,18 @@ class SinusSurgeryModule(L.LightningModule):
         self.log("test/loss", loss, batch_size=B)
         self._test_metrics.update(logits, batch["mask"].int())
 
+        # Per-image dice: compute for each sample individually
+        preds = (torch.sigmoid(logits) > 0.5).float()
+        masks = batch["mask"].float()
+        stems = batch.get("stem", [None] * len(preds))        # e.g. "S01_10020"
+        video_ids = batch.get("video_id", [None] * len(preds))  # e.g. "S01"
+        image_paths = batch.get("image_path", [None] * len(preds))  # full path
+        for pred, mask, stem, vid, img_path in zip(preds, masks, stems, video_ids, image_paths):
+            inter = (pred * mask).sum()
+            denom = pred.sum() + mask.sum()
+            dice = (2.0 * inter / denom).item() if denom > 0 else 1.0
+            self._per_image_dice.append((stem, vid, img_path, dice))
+
         # Accumulate first N samples for visualisation
         if self.vis_dir is not None:
             needed = self.vis_samples - sum(t.size(0) for t in self._vis_images)
@@ -134,6 +149,19 @@ class SinusSurgeryModule(L.LightningModule):
         logger.info("Test metrics:")
         for k, v in results.items():
             logger.info("  %s = %.4f", k, v.item())
+
+        # ── Per-image dice CSV ─────────────────────────────────────────────────
+        if self.vis_dir is not None and self._per_image_dice:
+            import csv
+            csv_path = self.vis_dir / "per_image_dice.csv"
+            self.vis_dir.mkdir(parents=True, exist_ok=True)
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["stem", "video_id", "image_path", "dice"])
+                for stem, vid, img_path, dice in self._per_image_dice:
+                    writer.writerow([stem, vid, img_path, f"{dice:.6f}"])
+            logger.info("Per-image dice saved → %s  (%d images)", csv_path, len(self._per_image_dice))
+        self._per_image_dice.clear()
 
         # ── Visualisation ─────────────────────────────────────────────────────
         if self.vis_dir is not None and self._vis_images:

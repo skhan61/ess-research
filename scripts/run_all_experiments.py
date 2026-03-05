@@ -67,14 +67,20 @@ def _load_experiments(plan: dict) -> list[dict[str, object]]:
     Merge order (later wins): global config < hypothesis config < experiment keys.
     Hypothesis-level ``config:`` block is merged first so experiment keys still win.
     """
+    # Keys that are handled internally by the runner — never forwarded to main.py
+    # and never included in run_name / variant suffix.
+    _RUNNER_KEYS = {"experiment", "fold", "source_hypothesis"}
+
     configs: list[dict[str, object]] = []
     for hyp in plan.get("hypotheses", []):
         hyp_cfg: dict[str, object] = hyp.get("config", {})   # per-hypothesis overrides
         for exp in hyp.get("experiments", []):
             entry = {**hyp_cfg, **exp}            # exp keys override hyp_cfg
             entry["hypothesis_id"] = hyp["id"]   # e.g. "H2"
-            # Keys defined directly on this experiment entry (beyond experiment/fold)
-            entry["_exp_own_keys"] = [k for k in exp if k not in ("experiment", "fold")]
+            # Keys defined directly on this experiment entry that affect run naming
+            entry["_exp_own_keys"] = [k for k in exp if k not in _RUNNER_KEYS]
+            # source_hypothesis: which prior hypothesis' checkpoint dir to load from
+            entry["_source_hypothesis"] = exp.get("source_hypothesis")  # None if absent
             configs.append(entry)
     return configs
 
@@ -103,18 +109,35 @@ def _find_best_checkpoint(ckpt_dir: Path) -> Path | None:
     return max(ckpts, key=_dice)
 
 
+def _find_resume_checkpoint(ckpt_dir: Path) -> Path | None:
+    """Return last.ckpt if it exists — used to resume interrupted training."""
+    last = ckpt_dir / "last.ckpt"
+    return last if last.exists() else None
+
+
 def _build_cmd(exp_cfg: dict[str, object], global_cfg: dict[str, object],
-               ckpt_path: Path | None = None) -> list[str]:
+               run_name: str | None = None,
+               ckpt_path: Path | None = None,
+               resume_ckpt_path: Path | None = None) -> list[str]:
     """
     Merge per-experiment keys (experiment, fold) with global config and
     build the ``python main.py`` subprocess command.
+
+    run_name:         passed as --run_name_override so main.py uses the same
+                      variant-aware directory name as the runner (e.g. includes prompt_mode).
+    ckpt_path:        passed as --ckpt_path  → test-only mode in main.py
+    resume_ckpt_path: passed as --resume_ckpt_path → resumes interrupted training
     """
     merged = {**global_cfg, **exp_cfg}   # exp keys override global if they clash
     tokens = [sys.executable, "main.py"]
     for k, v in merged.items():
         tokens += [f"--{k}", str(v)]
+    if run_name is not None:
+        tokens += ["--run_name_override", run_name]
     if ckpt_path is not None:
         tokens += ["--ckpt_path", str(ckpt_path)]
+    if resume_ckpt_path is not None:
+        tokens += ["--resume_ckpt_path", str(resume_ckpt_path)]
     return tokens
 
 
@@ -136,10 +159,13 @@ def main(plan: str, dry_run: bool = False, test_only: bool = False,
     # is never deleted after it is opened.
     if debug:
         debug_root = Path("outputs/debug")
-        if debug_root.exists():
-            shutil.rmtree(debug_root)
         debug_root.mkdir(parents=True, exist_ok=True)
-        setup_logging(log_file=debug_root / "runner.log")
+        # Always start with a fresh runner.log but preserve completed experiment
+        # outputs so already-passing debug experiments are skipped on re-run.
+        log_file = debug_root / "runner.log"
+        if log_file.exists():
+            log_file.unlink()
+        setup_logging(log_file=log_file)
     else:
         setup_logging()
 
@@ -178,16 +204,7 @@ def main(plan: str, dry_run: bool = False, test_only: bool = False,
         )
 
         # Output lives under save_dir/hypothesis_id/run_name/
-        hyp_save_dir = str(Path(global_cfg["save_dir"]) / hypothesis_id)
-        metrics_path = Path(hyp_save_dir) / run_name / "metrics.csv"
-
-        if not debug and _has_test_results(metrics_path):
-            logger.info("[%d/%d] SKIP — %s (results exist: %s)", i, len(experiments), run_label, metrics_path)
-            continue
-
-        # Strip internal bookkeeping keys before calling main.py
-        main_cfg = {k: v for k, v in exp_cfg.items() if k not in ("hypothesis_id", "_exp_own_keys")}
-
+        # In debug mode use outputs/debug/ so real outputs are never touched.
         if debug:
             hyp_save_dir = str(Path("outputs/debug") / hypothesis_id)
             merged_cfg = {**global_cfg, "save_dir": hyp_save_dir,
@@ -196,10 +213,44 @@ def main(plan: str, dry_run: bool = False, test_only: bool = False,
                           "limit_val_batches": 2,
                           "limit_test_batches": 2}
         else:
+            hyp_save_dir = str(Path(global_cfg["save_dir"]) / hypothesis_id)
             merged_cfg = {**global_cfg, "save_dir": hyp_save_dir}
 
+        metrics_path = Path(hyp_save_dir) / run_name / "metrics.csv"
+
+        if _has_test_results(metrics_path):
+            logger.info("[%d/%d] SKIP — %s (results exist: %s)", i, len(experiments), run_label, metrics_path)
+            continue
+
+        # Strip internal bookkeeping keys before calling main.py
+        _INTERNAL = {"hypothesis_id", "_exp_own_keys", "_source_hypothesis", "source_hypothesis"}
+        main_cfg = {k: v for k, v in exp_cfg.items() if k not in _INTERNAL}
+
+        source_hyp = exp_cfg.get("_source_hypothesis")  # e.g. "H3", or None
+
         ckpt_path: Path | None = None
-        if test_only:
+        if source_hyp:
+            # H5-style: load checkpoint from a prior hypothesis' output dir.
+            # In debug mode look in outputs/debug/{source_hyp}/; in full run
+            # look in the real save_dir. H1-H4 debug runs execute before H5 so
+            # the debug checkpoints already exist when H5 experiments start.
+            if debug:
+                src_ckpt_dir = Path("outputs/debug") / source_hyp / run_name / "checkpoints"
+            else:
+                src_ckpt_dir = Path(global_cfg["save_dir"]) / source_hyp / run_name / "checkpoints"
+            ckpt_path = _find_best_checkpoint(src_ckpt_dir)
+            if ckpt_path is None:
+                logger.warning(
+                    "[%d/%d] SKIP (no checkpoint in %s) — %s",
+                    i, len(experiments), src_ckpt_dir, run_label,
+                )
+                continue
+            _banner(
+                f"[{i}/{len(experiments)}] TEST-ONLY [{source_hyp}]  {run_label}"
+                f"  ckpt={ckpt_path.name}",
+                _CYAN,
+            )
+        elif test_only:
             ckpt_dir = Path(hyp_save_dir) / run_name / "checkpoints"
             ckpt_path = _find_best_checkpoint(ckpt_dir)
             if ckpt_path is None:
@@ -207,9 +258,25 @@ def main(plan: str, dry_run: bool = False, test_only: bool = False,
                 continue
             _banner(f"[{i}/{len(experiments)}] TEST-ONLY  {run_label}  ckpt={ckpt_path.name}", _CYAN)
         else:
-            _banner(f"[{i}/{len(experiments)}] START  {run_label}", _CYAN)
+            # Check for an interrupted previous run — resume from last.ckpt if found.
+            # Only applies to training experiments (not debug, not source_hyp, not test_only).
+            resume_ckpt: Path | None = None
+            if not debug and not source_hyp:
+                resume_ckpt_dir = Path(hyp_save_dir) / run_name / "checkpoints"
+                resume_ckpt = _find_resume_checkpoint(resume_ckpt_dir)
+                if resume_ckpt:
+                    logger.info(
+                        "%s%s[%d/%d] RESUME from %s — %s%s",
+                        _YELL, _BOLD, i, len(experiments), resume_ckpt.name, run_label, _R,
+                    )
+                else:
+                    _banner(f"[{i}/{len(experiments)}] START  {run_label}", _CYAN)
+            else:
+                _banner(f"[{i}/{len(experiments)}] START  {run_label}", _CYAN)
 
-        cmd = _build_cmd(main_cfg, merged_cfg, ckpt_path=ckpt_path)
+        cmd = _build_cmd(main_cfg, merged_cfg, run_name=run_name,
+                         ckpt_path=ckpt_path,
+                         resume_ckpt_path=resume_ckpt if not source_hyp else None)
         logger.info("  cmd: %s", " ".join(cmd))
 
         if dry_run:
@@ -241,6 +308,10 @@ def main(plan: str, dry_run: bool = False, test_only: bool = False,
                          _RED, _BOLD, i, len(experiments), run_label, result.returncode, _R)
             failed.append(run_label)
         else:
+            # Brief pause so the OS fully reclaims GPU memory before the next
+            # subprocess loads SAM3 (~11 GB). Without this, back-to-back
+            # experiments can OOM even though each process exits cleanly.
+            import time; time.sleep(5)
             logger.info("%s%s[%d/%d] OK — %s%s",
                         _GREEN, _BOLD, i, len(experiments), run_label, _R)
 
