@@ -28,6 +28,7 @@ dev = [
     "jupyter>=1.0.0",
     "pytest>=9.0.2",
     "rich>=13.7.0",
+    "ruff>=0.4.0",
 ]
 
 [build-system]
@@ -41,6 +42,18 @@ packages = ["src"]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

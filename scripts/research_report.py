@@ -163,7 +163,9 @@ def main(
             exp_name = str(cfg["experiment"])
             fold     = str(cfg["fold"])
             # Build variant suffix from any extra experiment keys (same logic as runner)
-            own_keys = [k for k in cfg if k not in ("experiment", "fold")]
+            # source_hypothesis is a runner-internal key — never part of the run name/path
+            _SKIP = {"experiment", "fold", "source_hypothesis"}
+            own_keys = [k for k in cfg if k not in _SKIP]
             extras   = {k: cfg[k] for k in own_keys}
             variant  = ("_" + "_".join(f"{k}{v}" for k, v in sorted(extras.items()))) if extras else ""
             row      = results.get((hid, exp_name, fold, variant))

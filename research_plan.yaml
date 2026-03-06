@@ -23,6 +23,7 @@ config:
   text_prompt: "surgical instrument"
   batch_size: 8
   num_workers: null                  # null → os.cpu_count() at runtime
+  
   pin_memory: true
 
   # Training
@@ -231,3 +232,28 @@ hypotheses:
         fold: 3
         prompt_mode: "all"
         source_hypothesis: H4
+    failure_analysis:
+      title: "H5 Failure Analysis — Per-image Dice Distribution and Worst Frames"
+      hypothesis: >
+        Post-hoc analysis of H5 per-image Dice CSVs to identify failure modes.
+        Frames with Dice < 0.5 are expected to concentrate in specific sessions
+        (S09/S10 cadaver) due to instrument-absent frames, severe occlusion,
+        or specular glare. Box prompts are expected to reduce the failure tail
+        relative to text prompts.
+      expected: >
+        < 10% of frames below Dice 0.5. Worst frames identifiable as background-only,
+        instrument at boundary, or specular glare. Box prompt distribution
+        stochastically dominates text prompt distribution.
+      analysis_script: "scripts/h5_failure_analysis.py"
+      inputs:
+        - "outputs/H5/*/predictions/per_image_dice.csv"
+        - "outputs/summary.csv"
+      outputs:
+        - path: "outputs/H5/analysis/dice_distributions.png"
+          description: "Box plot + histogram of per-image Dice across all prompt types"
+        - path: "outputs/H5/analysis/worst_frames_grid.png"
+          description: "Grid of 10 worst-performing frames (text prompt, Dice < 0.5)"
+        - path: "outputs/H5/analysis/direct_comparison.tex"
+          description: "LaTeX table: SAM3+LoRA vs HFRF-Net on UW-Sinus live subset"
+      run_command: "uv run python scripts/h5_failure_analysis.py"
+      skip_training: true  # analysis only, no GPU required
