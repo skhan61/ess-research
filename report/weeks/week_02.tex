@@ -1,0 +1,304 @@
+% ============================================================
+% Week 2 — 09 Mar – 13 Mar 2026
+% Compile:  cd report && make week_02
+% ============================================================
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+\definecolor{sota}{HTML}{2E7D32}
+\definecolor{good}{HTML}{1565C0}
+\definecolor{warn}{HTML}{E65100}
+
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\textbf{ESS Research} --- Week 2 Update}
+\rhead{Annotation-Free Surgical Instrument Segmentation}
+\cfoot{\thepage}
+
+\titleformat{\section}{\large\bfseries}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\begin{document}
+
+% ── Cover ────────────────────────────────────────────────────
+\begin{center}
+    {\LARGE \textbf{Towards Annotation-Free Surgical Instrument Segmentation}}\\[0.3em]
+    {\large via Foundation Model Adaptation and Robot Kinematics}\\[0.5em]
+    \rule{0.5\linewidth}{0.4pt}\\[0.4em]
+    {\normalsize Weekly Research Progress Report --- \textbf{Week 2}}\\[0.3em]
+    {\normalsize Week dates: 09 Mar -- 13 Mar 2026 \quad|\quad Report date: 13 March 2026}\\[0.3em]
+    {\normalsize \href{https://github.com/skhan61/ess-research}{\texttt{github.com/skhan61/ess-research}}}
+\end{center}
+\vspace{0.5em}
+
+\noindent Week~1 established that SAM3+LoRA+box exceeds task-specific SOTA and that
+spatial prompt quality is the primary performance bottleneck.
+Week~2 records the research thinking that follows: \textbf{what does the
+bottleneck reveal about the deeper problem, and where does it point within the
+broader space of robotic perception?}
+No new experiments were run. This report documents an open research direction.
+
+\hrule
+\vspace{1em}
+
+% ============================================================
+\section{What Week 1 Actually Showed}
+% ============================================================
+
+The prompt ablation (H4) produced a result that deserves closer reading.
+The box prompt --- derived directly from the GT mask --- is the strongest
+prompt. This creates a circular dependency: the best spatial prior comes
+from the annotation we are trying to replace.
+The practical implication is that the performance ceiling observed in Week~1
+is set not by the model but by the annotation quality itself.
+If the annotations contain error, the reported Dice contains that error,
+and the model has no way to exceed it.
+
+This raises a more fundamental question than ``which prompt is best'':
+\textbf{can we trust the GT masks we are training and evaluating against?}
+
+% ============================================================
+\section{The Ground Truth Reliability Problem}
+% ============================================================
+
+Manual pixel-level annotation of surgical instruments introduces error that
+is both irreducible and unmeasurable. Annotator disagreement on fine instrument
+boundaries is typically 3--10 pixels. There is no reference standard against
+which to quantify this error. As a result, Dice scores computed against manual
+GT describe similarity to a human drawing, not accuracy of true instrument
+boundary delineation. This is a known but largely unaddressed problem in
+surgical vision benchmarking.
+
+The question becomes: is there a GT source whose error is \textit{bounded}
+and \textit{physically interpretable}?
+
+% ============================================================
+\section{Robot Kinematics as a GT Source}
+% ============================================================
+
+\subsection{The Core Idea}
+
+In a robotic surgical system, the instrument pose --- base and tip positions
+in 3D --- is known from forward kinematics and encoder readings.
+Projecting this onto the image plane yields a geometric instrument mask
+whose boundary error is bounded by the encoder precision, not by human
+judgement.
+
+\subsection{How GT is Generated}
+
+The pipeline from robot data to GT mask involves three steps:
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{Forward kinematics:} robot joint encoder readings
+          $\to$ 3D positions $P_\text{base},\, P_\text{tip}$ in robot
+          base frame.
+    \item \textbf{Hand-eye projection:} apply the robot-to-camera
+          transform $T_\text{cam}^{\text{robot}}$ (hand-eye calibration)
+          $\to$ 2D image coordinates
+          $p_\text{base} = \pi(T \cdot P_\text{base})$,\;
+          $p_\text{tip}  = \pi(T \cdot P_\text{tip})$,
+          where $\pi(\cdot)$ is the camera projection.
+    \item \textbf{Mask generation:} for each image pixel $x$, assign
+          instrument label if its distance to the projected centerline
+          segment is less than the known instrument radius $r$:
+\end{enumerate}
+
+\begin{equation}
+    M^*(x) = \mathbf{1}\!\left[
+        \min_{s\in[0,1]} \left\| x -
+        \bigl[(1{-}s)\,p_{\text{base}} + s\,p_{\text{tip}}\bigr]
+        \right\|_2 < r
+    \right]
+\end{equation}
+
+The error in $M^*$ propagates from two sources: encoder precision
+(Step~1) and hand-eye calibration accuracy (Step~2). Both are
+measurable. The lab dataset carries $\leq 1$\,mm combined accuracy,\footnote{Based
+on email correspondence and meeting discussion with Prof.\ Yangming Lee
+(Week~1--2). Explicit confirmation of data format and available metadata
+is pending.} replacing an \textit{unknown} annotation error with a
+\textit{known} calibration error.
+
+\subsection{What This Means for Evaluation}
+
+A Dice score computed against $M^*$ has a direct physical interpretation:
+it measures how close the predicted mask is to the true instrument boundary,
+within the tolerance of the robot's own measurement accuracy.
+This is qualitatively different from Dice against manual GT.
+
+\subsection{The Deployment Implication}
+
+Kinematic data is available in a robotic system during data collection.
+It is \textit{not} available in general clinical deployment: non-robotic
+procedures, different hospitals, different instruments.
+The natural architecture is therefore:
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Training:} use kinematic data to generate $M^*$;
+          fine-tune SAM3+LoRA on these masks.
+    \item \textbf{Inference:} image + text prompt only. No robot.
+          No sensor. No annotation.
+\end{itemize}
+
+The model acquires its knowledge of instrument appearance from robot-supervised
+training and transfers it to settings where the robot is absent.
+
+% ============================================================
+\section{Data Requirements for the Full Pipeline}
+% ============================================================
+
+\subsection{What Is Needed}
+
+\begin{center}
+\begin{tabular}{p{4cm} p{4.5cm} p{4cm}}
+\toprule
+\textbf{Data} & \textbf{Used For} & \textbf{When Needed} \\
+\midrule
+Video frames (RGB + timestamps) &
+    Model input &
+    Training + inference \\
+Joint encoder readings \textit{or} pre-computed $(P_\text{base}, P_\text{tip})$ &
+    Forward kinematics $\to$ 3D pose &
+    Training only \\
+Hand-eye calibration matrix $T_\text{cam}^\text{robot}$ &
+    Project 3D pose $\to$ image coordinates &
+    Training only \\
+Camera intrinsics $K$ + distortion &
+    Camera projection $\pi(\cdot)$ &
+    Training only \\
+Instrument radius $r$ (per instrument type) &
+    Mask generation via Eq.~(1) &
+    Training only \\
+Frame--pose timestamp sync &
+    Align image to correct pose &
+    Training only \\
+\midrule
+\textbf{At inference} & Image + text prompt only & \textbf{Nothing else} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The $\leq 1$\,mm accuracy stated for the lab dataset implies that
+$T_\text{cam}^\text{robot}$ and $K$ were already computed and validated
+as part of data collection. These are therefore available from the dataset
+owner alongside the kinematic and video data.
+
+% ============================================================
+\section{Where This Sits in Robotic Perception}
+% ============================================================
+
+The broader question this belongs to is:
+\textbf{how does a robot use its own proprioceptive knowledge to supervise
+its visual perception?}
+
+In manipulation and navigation, this is an active research area --- using
+internal state (joint angles, odometry, force readings) to label visual
+data without human annotation. Surgical robotics is a natural domain for
+this because the robot already records precise kinematic data as part of
+normal operation.
+
+The connection to segmentation is one instance of this.
+A more general formulation: the robot's kinematic state at time $t$ provides
+a spatial prior over the image at time $t$. Any visual learning task that
+benefits from knowing where the robot's end-effector is --- segmentation,
+depth estimation, tissue contact detection, scene reconstruction ---
+could in principle be supervised this way.
+
+Whether segmentation specifically is the right task to anchor a paper,
+or whether the contribution is better framed at the level of the
+kinematic-visual supervision principle, remains an open question.
+
+% ============================================================
+\section{What Prior Work Has and Has Not Done}
+% ============================================================
+
+\begin{center}
+\begin{tabular}{p{3cm} C{1.2cm} p{4.5cm} p{4cm}}
+\toprule
+\textbf{Work} & \textbf{Year} & \textbf{Dataset} & \textbf{Limitation} \\
+\midrule
+Rocha \& Padoy~\cite{rocha2019kinematic} & 2019 &
+Custom dVRK. Laparoscopic frames + kinematics. Not public. &
+Kinematics needed at inference. No foundation model. \\
+CaRTS~\cite{ding2022carts} & 2022 &
+dVRK synthetic + real; smoke, blood, altered backgrounds. &
+Kinematics needed at inference. Robot required at deployment. \\
+SAF-IS~\cite{sestini2025safis} & 2025 &
+EndoVis 2017 \& 2018 (public). Annotation-free via unsupervised masks. &
+No kinematic GT. No physically bounded error. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Prior work that uses kinematic GT \cite{rocha2019kinematic,ding2022carts}
+requires the robot at inference because pre-SAM models were too weak to
+operate on visual input alone. SAM3 closes this gap.
+Prior work that achieves annotation-free inference \cite{sestini2025safis} does not use
+kinematics and therefore cannot provide a physically bounded GT error.
+The combination --- kinematic GT at training, foundation model inference ---
+has not been done.
+
+% ============================================================
+\section{Next Steps}
+% ============================================================
+
+The lab dataset contains video frames and robot pose data.
+\textbf{There are no existing GT masks.} The $\leq 1$\,mm figure refers
+to the robot encoder accuracy --- meaning we can derive GT masks from
+the pose at that accuracy. This derivation is the contribution.
+
+Assuming dataset access:
+
+\begin{enumerate}[noitemsep]
+    \item Apply Eq.~(1) to robot pose data to generate $M^*$ for all
+          frames --- creating GT masks that do not otherwise exist.
+    \item Fine-tune the existing SAM3+LoRA checkpoint on these
+          kinematic-derived masks.
+    \item Evaluate on held-out frames: does the model trained on
+          derived GT segment correctly?
+    \item Characterise the result: segmentation accuracy is now
+          bounded by $\leq 1$\,mm encoder precision rather than
+          by annotation quality.
+\end{enumerate}
+
+% ============================================================
+\section{Repository}
+% ============================================================
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Item} & \textbf{Detail} \\
+\midrule
+Repository   & \texttt{github.com/skhan61/ess-research} \\
+Entry point  & \texttt{uv run python scripts/run\_all\_experiments.py --plan research\_plan.yaml} \\
+Debug flag   & \texttt{--debug} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\nocite{qin2020uw,hfrfnet2025,ravi2024sam2,yue2024surgicalsam,wu2024pointtracking,liu2024surgsam2}
+\bibliographystyle{plain}
+\bibliography{../references}
+
+\end{document}

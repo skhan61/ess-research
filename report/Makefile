@@ -14,9 +14,11 @@ $(PDFS_DIR):
 
 week_%: $(PDFS_DIR)
 	cd $(WEEKS_DIR) && $(PDFLATEX) week_$*.tex
+	cd $(WEEKS_DIR) && bibtex week_$* || true
+	cd $(WEEKS_DIR) && $(PDFLATEX) week_$*.tex
 	cd $(WEEKS_DIR) && $(PDFLATEX) week_$*.tex
 	mv $(WEEKS_DIR)/week_$*.pdf $(PDFS_DIR)/week_$*.pdf
-	cd $(WEEKS_DIR) && rm -f week_$*.aux week_$*.log week_$*.out week_$*.toc
+	cd $(WEEKS_DIR) && rm -f week_$*.aux week_$*.log week_$*.out week_$*.toc week_$*.bbl week_$*.blg
 
 all: $(PDFS_DIR)
 	@for f in $(WEEKS_DIR)/week_[0-9][0-9].tex; do \
