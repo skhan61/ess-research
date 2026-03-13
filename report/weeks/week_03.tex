@@ -51,60 +51,50 @@
 \end{center}
 \vspace{0.5em}
 
-\noindent Week~1 showed that SAM3+LoRA+box exceeds task-specific SOTA, and that
-spatial prompt quality is the primary performance bottleneck.
-Week~2 proposed robot kinematics as a GT source --- a direction requiring lab
-dataset access that is not yet available.
-Week~3 \textbf{pivots to a self-contained publishable direction} using only the
-public UW-Sinus-Surgery-CL dataset already in hand:
-identifying and closing the \textbf{inference-time prompt gap} in SAM3 fine-tuning.
+\noindent Week~1 established that SAM3+LoRA with box prompts exceeds task-specific
+SOTA on UW-Sinus-Surgery-CL, and that spatial prompt quality is the primary
+performance bottleneck.
+Week~2 proposed robot kinematics as a bounded-error GT source --- a direction
+contingent on lab dataset access.
+Week~3 focuses on a self-contained, immediately executable direction using only
+the public dataset: identifying and closing the
+\textbf{inference-time prompt gap} in SAM3 fine-tuning.\footnote{Research
+direction confirmed in email correspondence with Prof.\ Yangming Lee
+(25 Feb 2026) and follow-up discussion (Zoom, 13 Mar 2026):
+focus on one specific algorithm and identify a concrete improvement
+using public data; lab data (cadaver and clinical, $<$1\,mm GT accuracy)
+available as a subsequent extension.}
 
 \hrule
 \vspace{1em}
 
 % ============================================================
-\section{Research Direction: What and Why}
+\section{The Inference-Time Prompt Gap}
 % ============================================================
 
-\subsection{Supervisor Guidance (Prof.\ Lee, Feb 25 2026)}
+\subsection{The Circular Dependency in H4}
 
-\begin{quote}
-\textit{``I think your plan is very doable. But my suggestion is tune down the tone
-to ONE paper. That means you will identify a specific algorithm, and improve from
-there. You can start to use public dataset, and we have both cadaver and real
-clinical data that contains high accuracy ($<$1\,mm error) ground truth.''}
-\end{quote}
-
-This week operationalises that guidance:
-\begin{itemize}[noitemsep]
-    \item \textbf{One algorithm:} SAM3+LoRA (already running).
-    \item \textbf{Identify the failure:} the best prompt (GT box) is circular ---
-          it requires the GT mask you are trying to predict. It cannot be
-          reproduced at deployment.
-    \item \textbf{Improve from there:} replace per-frame GT prompts with
-          prompt-once temporal propagation using SAM3's built-in video memory.
-    \item \textbf{Public dataset:} UW-Sinus-Surgery-CL. Lab data used later
-          as extension or validation.
-\end{itemize}
-
-\subsection{The Circular Dependency}
-
-In the H4 experiments (Week~1), the box prompt was generated as follows:
+The H4 prompt ablation (Week~1) generated box prompts as follows:
 
 \begin{enumerate}[noitemsep]
-    \item Load the GT binary mask for each frame.
-    \item Find the bounding box of all instrument pixels: $[x_1, y_1, x_2, y_2]$.
-    \item Pass that box to SAM3 as the spatial prompt.
+    \item Load the ground-truth binary mask for each frame.
+    \item Compute the tight bounding box of all instrument pixels:
+          $[x_1, y_1, x_2, y_2]$.
+    \item Pass that box to SAM3 as the spatial prompt at inference.
 \end{enumerate}
 
-This is circular: to generate the box you need the GT mask; the GT mask is
-what you are trying to predict. The high Dice scores reported for box-prompted
-experiments ($0.9593$ live fold1) are therefore \textbf{upper bounds under an
-idealised condition that does not exist at deployment}.
+This procedure is circular: the bounding box is derived from the GT mask,
+which is precisely the quantity the model is tasked with predicting.
+The strong Dice scores reported for box-prompted experiments
+(e.g., $0.9593$ on L$\to$L fold~1) are therefore \textbf{upper bounds under
+an idealised condition that does not hold at deployment}.
+No clinical inference pipeline has access to GT masks per frame.
 
-\subsection{The Gap Already Measured in Week 1}
+\subsection{The Gap Quantified from Week 1 Data}
 
-The gap between realistic and idealised performance is already in the data:
+The performance gap between the realistic baseline (text prompt, no spatial
+guidance) and the idealised upper bound (GT box) is already present in the
+Week~1 results:
 
 \begin{center}
 \begin{tabular}{lcccc}
@@ -112,28 +102,28 @@ The gap between realistic and idealised performance is already in the data:
 \textbf{Prompt} & \textbf{C$\to$C} & \textbf{L$\to$L f1} &
     \textbf{L$\to$L f2} & \textbf{L$\to$L f3} \\
 \midrule
-Text (realistic baseline, H3) & 0.9329 & 0.9049 & 0.8389 & 0.8886 \\
-GT box (upper bound, H4)      & 0.9476 & 0.9593 & 0.9320 & 0.9548 \\
+Text --- realistic inference baseline (H3) & 0.9329 & 0.9049 & 0.8389 & 0.8886 \\
+GT box --- idealised upper bound (H4)      & 0.9476 & 0.9593 & 0.9320 & 0.9548 \\
 \midrule
-\textbf{Gap} ($\Delta$Dice)   & 0.015  & 0.054  & 0.093  & 0.066 \\
+\textbf{Gap} ($\Delta$Dice)                & 0.015  & 0.054  & 0.093  & 0.066  \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\noindent The gap is as large as \textbf{0.093 Dice} (live fold2, the hardest session).
-No new experiments are required to establish this gap --- it exists in results
-already collected. The research question for Week~3 onward is:
+\noindent The gap reaches \textbf{0.093 Dice} on the hardest session (L$\to$L fold~2).
+No new experiments are required to establish this gap.
+The research question for Week~3 is:
 
 \begin{center}
-\textit{Can temporal propagation close this gap without requiring GT at inference?}
+\textit{Can temporal propagation close this gap without GT at inference?}
 \end{center}
 
 % ============================================================
-\section{What the Literature Has Done}
+\section{Prior Work on Inference-Time Prompt Generation}
 % ============================================================
 
-The inference-time prompt gap is a known problem. Prior approaches all
-require an \textbf{additional model or component} to generate prompts automatically:
+The prompt gap is a recognised problem. Existing approaches all introduce
+an \textbf{additional model or external component}:
 
 \begin{center}
 \begin{tabular}{p{3.5cm} p{4cm} p{5cm}}
@@ -141,79 +131,80 @@ require an \textbf{additional model or component} to generate prompts automatica
 \textbf{Work} & \textbf{Approach} & \textbf{Limitation} \\
 \midrule
 Wu et al.~\cite{wu2024pointtracking} (2024) &
-    Separate online point tracker generates prompts from tracked sparse points &
-    Requires an additional tracker; manual initialisation still needed \\
+    External online point tracker auto-generates prompts from tracked sparse points &
+    Requires a separate tracking model; manual initialisation needed \\
 Surgical-DeSAM (2024) &
-    DETR detector auto-generates bounding boxes &
-    Depends on detector accuracy; extra model required \\
+    DETR detection head auto-generates bounding boxes &
+    Depends on detector accuracy; additional model required \\
 SurgicalSAM~\cite{yue2024surgicalsam} (2024) &
-    Class prototype embeddings (no spatial prompt) &
-    No spatial localisation; treats whole instrument as one entity \\
+    Class prototype embeddings bypass spatial prompts &
+    No spatial localisation; instrument treated as a single entity \\
 SAM2S (2025) &
-    Enhanced memory + semantic long-term tracking &
-    Requires large surgical video dataset (61k frames) for training \\
+    Enhanced memory with semantic long-term tracking &
+    Requires 61k-frame surgical video dataset for training \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\noindent \textbf{The gap:} no prior work uses SAM3's \textit{native} video memory
-to propagate a single initial prompt across a clip --- without any additional
-model, without per-frame GT, and with LoRA fine-tuning on a small domain-specific
-dataset.
+\noindent \textbf{Gap in prior work:} no method uses SAM3's \textit{native} video
+memory to propagate a single initial prompt across a clip --- without any
+additional model, without per-frame GT, and with LoRA fine-tuning on a
+small domain-specific dataset.
 
 % ============================================================
 \section{Proposed Fix: Prompt-Once Temporal Propagation}
 % ============================================================
 
-\subsection{Core Idea}
+\subsection{Mechanism}
 
-SAM3 inherits SAM2's video memory module~\cite{ravi2024sam2}. After seeing a
-segmented frame, SAM3 stores a memory embedding of the object it found.
-On subsequent frames it uses that memory to locate and segment the same object ---
-without any new prompt.
+SAM3 inherits SAM2's video memory module~\cite{ravi2024sam2}. After segmenting
+a frame, the model stores a memory embedding of the detected object.
+On subsequent frames the memory is queried to locate and segment the same
+object without any new prompt.
 
-The proposed inference protocol:
+The proposed inference protocol is therefore:
 
 \begin{center}
 \begin{tabular}{lp{9cm}}
 \toprule
 \textbf{Frame} & \textbf{Action} \\
 \midrule
-Frame 1 & GT box prompt $\to$ SAM3 segments instrument $\to$ stores in memory \\
-Frames $2 \ldots N$ & No prompt. SAM3 reads memory, tracks instrument, predicts mask. \\
+Frame 1        & GT box prompt $\to$ SAM3 segments instrument $\to$
+                 memory embedding stored \\
+Frames $2 \ldots N$ & No prompt supplied. Memory queried; instrument tracked
+                      and segmented. \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-GT is touched \textbf{once per video clip}, not once per frame.
-In practice, ``prompting frame 1'' is feasible in a clinical workflow --- a
-clinician or a simple click-interface identifies the instrument in the first frame.
+GT is used \textbf{once per video clip}. A single-frame initialisation of
+this kind is clinically feasible --- it corresponds to one user click
+identifying the instrument at clip onset.
 
-\subsection{Why This Is Better Than Prior Work}
+\subsection{Distinction from Prior Work}
 
 \begin{itemize}[noitemsep]
-    \item No separate detector or tracker.
-    \item No large-scale pre-training dataset required.
-    \item SAM3's memory mechanism is already trained for exactly this use case.
-    \item Directly comparable to Week~1 results: same model, same dataset,
-          same fine-tuning --- only the prompting strategy changes.
+    \item No separate detector or tracker is introduced.
+    \item No large-scale pre-training dataset is required.
+    \item SAM3's memory mechanism is natively designed for this propagation task.
+    \item The comparison to Week~1 results is direct: same model, same dataset,
+          same LoRA fine-tuning --- only the prompting protocol changes.
 \end{itemize}
 
-\subsection{The Paper in One Sentence}
+\subsection{Contribution Statement}
 
-\begin{quote}
-\textit{SAM3+LoRA fine-tuned with per-frame GT box prompts achieves SOTA on
-UW-Sinus-Surgery-CL; we show this result is unreproducible at deployment due
-to a circular GT dependency, quantify the resulting performance gap, and close
-it via prompt-once temporal propagation using SAM3's native video memory.}
-\end{quote}
+SAM3+LoRA fine-tuned with per-frame GT box prompts achieves SOTA on
+UW-Sinus-Surgery-CL; this result is unreproducible at deployment due to a
+circular GT dependency. The gap between realistic and idealised performance
+is quantified, and prompt-once temporal propagation using SAM3's native
+video memory is proposed and evaluated as a deployment-compatible alternative.
 
 % ============================================================
 \section{Planned Experiments --- Week 3}
 % ============================================================
 
-Three experiments are needed. All use the existing SAM3+LoRA checkpoints
-from Week~1 --- no retraining required.
+Three experiments are required, all using existing SAM3+LoRA checkpoints
+from Week~1 --- no retraining needed.
 
 \begin{center}
 \begin{tabular}{C{0.8cm} p{3.5cm} p{5cm} p{3.5cm}}
@@ -221,24 +212,23 @@ from Week~1 --- no retraining required.
 \textbf{ID} & \textbf{Name} & \textbf{What It Measures} & \textbf{Expected Result} \\
 \midrule
 H6 & Prompt-gap quantification &
-    Re-run H3 (text) and H4 (GT box) on \textit{video sequences} (ordered frames),
-    not shuffled frames. Establishes the sequence-level gap. &
-    Gap $\sim$0.05--0.09 Dice, consistent with Week~1 \\
+    Re-run H3 (text) and H4 (GT box) on temporally ordered video sequences
+    rather than shuffled frames. Establishes the sequence-level gap. &
+    Gap consistent with Week~1 ($\sim$0.05--0.09 Dice) \\
 H7 & Temporal propagation &
-    Prompt frame 1 of each clip with GT box. Frames 2--$N$: no prompt.
-    Use SAM3 memory module. Evaluate Dice on all frames. &
-    Dice between text (H3) and GT box (H4) upper bound \\
+    Prompt frame~1 of each clip with GT box; frames $2\ldots N$ receive
+    no prompt. SAM3 memory module propagates the segmentation.
+    Evaluate Dice on all frames. &
+    Dice between text baseline (H3) and GT box upper bound (H4) \\
 H8 & Propagation robustness &
-    Vary clip length: 5, 10, 20, 50 frames. Measure Dice decay as clip grows.
-    Identifies how many frames the memory stays reliable. &
-    Graceful degradation; plateau or slow decay \\
+    Vary clip length: 5, 10, 20, 50 frames. Measure Dice as a function
+    of distance from the initialisation frame. &
+    Graceful degradation; identifies reliable propagation horizon \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\subsection{Key Comparison Table (Target)}
-
-After Week~3, the central result table will be:
+\subsection{Target Result Table}
 
 \begin{center}
 \begin{tabular}{lcccc}
@@ -246,40 +236,17 @@ After Week~3, the central result table will be:
 \textbf{Setting} & \textbf{C$\to$C} & \textbf{L$\to$L f1} &
     \textbf{L$\to$L f2} & \textbf{L$\to$L f3} \\
 \midrule
-Text prompt, per-frame (H3) --- \textit{realistic, weak} & 0.9329 & 0.9049 & 0.8389 & 0.8886 \\
-GT box, per-frame (H4) --- \textit{upper bound, circular} & 0.9476 & 0.9593 & 0.9320 & 0.9548 \\
-\textbf{Temporal propagation (H7)} --- \textit{realistic, strong} & \textbf{?} & \textbf{?} & \textbf{?} & \textbf{?} \\
+Text prompt, per-frame (H3) --- realistic, weak        & 0.9329 & 0.9049 & 0.8389 & 0.8886 \\
+GT box, per-frame (H4) --- upper bound, circular       & 0.9476 & 0.9593 & 0.9320 & 0.9548 \\
+\textbf{Temporal propagation (H7)} --- realistic, strong & \textbf{?} & \textbf{?} & \textbf{?} & \textbf{?} \\
 \midrule
-HFRF-Net (task-specific SOTA) & --- & 0.9374 & 0.9374 & 0.9374 \\
+HFRF-Net (task-specific SOTA)                          & ---    & 0.9374 & 0.9374 & 0.9374 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\noindent If H7 lands above H3 and close to H4 across most folds, the contribution
-is demonstrated: temporal propagation closes the prompt gap without requiring GT
-per frame.
-
-% ============================================================
-\section{On the Broader Interpretation of Lee's Direction}
-% ============================================================
-
-Lee's instruction --- \textit{``identify a specific algorithm, improve from
-there''} --- is interpreted as follows and is not misread:
-
-\begin{enumerate}[noitemsep]
-    \item \textbf{Specific algorithm:} SAM3+LoRA. Already chosen and running.
-    \item \textbf{Identify the failure:} the inference-time prompt gap. Already
-          quantified in Week~1 data.
-    \item \textbf{Improve from there:} temporal propagation. Uses the same model
-          with a different inference strategy.
-    \item \textbf{Public dataset first:} UW-Sinus-Surgery-CL throughout.
-          Lab data (cadaver + clinical, $<$1\,mm GT) is a natural extension
-          once the core method is validated.
-    \item \textbf{Generality:} the prompt gap problem exists for all SAM-based
-          methods that report GT-box evaluation (SurgSAM-2, SurgicalSAM,
-          wu2024pointtracking). The fix applies beyond SAM3 --- any model
-          with a video memory module can use the same protocol.
-\end{enumerate}
+\noindent If H7 exceeds the text baseline and approaches the GT box upper bound
+across most folds, the contribution is demonstrated.
 
 % ============================================================
 \section{Repository}
