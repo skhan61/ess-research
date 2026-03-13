@@ -20,6 +20,9 @@ Usage
 
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import torch
 import torchvision.utils as vutils
 
@@ -77,5 +80,11 @@ def save_prediction_grid(
         rows.extend([imgs[i], gts[i], preds[i]])
     grid = vutils.make_grid(torch.stack(rows), nrow=3, padding=2, normalize=False)
 
-    # torchvision save_image expects (C, H, W) in [0, 1]
-    vutils.save_image(grid, save_path)
+    # Save as EPS via matplotlib (torchvision save_image only supports PNG)
+    arr = grid.permute(1, 2, 0).numpy()  # (H, W, 3)
+    fig, ax = plt.subplots(1, 1, figsize=(arr.shape[1] / 100, arr.shape[0] / 100), dpi=100)
+    ax.imshow(arr)
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    fig.savefig(save_path, format="eps", bbox_inches="tight", pad_inches=0)
+    plt.close(fig)

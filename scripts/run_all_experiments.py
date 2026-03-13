@@ -257,10 +257,11 @@ def main(plan: str, dry_run: bool = False, test_only: bool = False,
                 logger.warning("[%d/%d] SKIP (test_only, no checkpoint) — %s", i, len(experiments), run_label)
                 continue
             _banner(f"[{i}/{len(experiments)}] TEST-ONLY  {run_label}  ckpt={ckpt_path.name}", _CYAN)
+            resume_ckpt: Path | None = None
         else:
             # Check for an interrupted previous run — resume from last.ckpt if found.
             # Only applies to training experiments (not debug, not source_hyp, not test_only).
-            resume_ckpt: Path | None = None
+            resume_ckpt = None
             if not debug and not source_hyp:
                 resume_ckpt_dir = Path(hyp_save_dir) / run_name / "checkpoints"
                 resume_ckpt = _find_resume_checkpoint(resume_ckpt_dir)

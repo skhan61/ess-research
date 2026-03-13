@@ -83,8 +83,8 @@ def plot_distributions(runs: dict):
     axes[1].legend(fontsize=8)
 
     plt.tight_layout()
-    out = OUT_DIR / "dice_distributions.png"
-    plt.savefig(out, dpi=150); plt.close()
+    out = OUT_DIR / "dice_distributions.eps"
+    plt.savefig(out, format="eps"); plt.close()
     print(f"Saved: {out}")
     return out
 
@@ -127,8 +127,8 @@ def plot_worst_grid(runs: dict, threshold=0.5, n=10):
 
     plt.suptitle(f"H5: Worst frames (text prompt, Dice < {threshold})", fontsize=10)
     plt.tight_layout()
-    out = OUT_DIR / "worst_frames_grid.png"
-    plt.savefig(out, dpi=150); plt.close()
+    out = OUT_DIR / "worst_frames_grid.eps"
+    plt.savefig(out, format="eps"); plt.close()
     print(f"Saved: {out}")
     return out, worst
 

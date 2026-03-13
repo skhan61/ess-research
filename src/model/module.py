@@ -165,7 +165,7 @@ class SinusSurgeryModule(L.LightningModule):
 
         # ── Visualisation ─────────────────────────────────────────────────────
         if self.vis_dir is not None and self._vis_images:
-            save_path = self.vis_dir / "predictions.png"
+            save_path = self.vis_dir / "predictions.eps"
             save_prediction_grid(
                 images=torch.cat(self._vis_images),
                 masks=torch.cat(self._vis_masks),

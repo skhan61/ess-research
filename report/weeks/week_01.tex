@@ -155,7 +155,7 @@ is sensing instruments but not their exact shape. Motivates LoRA fine-tuning.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth,height=10cm,keepaspectratio]{../../outputs/H1/C_C_fold1/predictions/predictions.png}
+    \includegraphics[width=\linewidth,height=10cm,keepaspectratio]{../../outputs/H1/C_C_fold1/predictions/predictions.eps}
     \caption{H1: Zero-shot cadaver. Each row: input, GT mask, predicted mask.
              Over-segmentation is clearly visible.}
 \end{figure}
@@ -184,15 +184,15 @@ systematic model limitation.
 \begin{figure}[H]
     \centering
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{../../outputs/H2/L_L_fold1/predictions/predictions.png}
+        \includegraphics[width=\linewidth]{../../outputs/H2/L_L_fold1/predictions/predictions.eps}
         \caption{Fold 1 --- Dice 0.568}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{../../outputs/H2/L_L_fold2/predictions/predictions.png}
+        \includegraphics[width=\linewidth]{../../outputs/H2/L_L_fold2/predictions/predictions.eps}
         \caption{Fold 2 --- Dice 0.442}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth]{../../outputs/H2/L_L_fold3/predictions/predictions.png}
+        \includegraphics[width=\linewidth]{../../outputs/H2/L_L_fold3/predictions/predictions.eps}
         \caption{Fold 3 --- Dice 0.719}
     \end{subfigure}
     \caption{H2: Zero-shot live surgery across three folds.}
@@ -226,11 +226,11 @@ LoRA calibrated boundaries without sacrificing recall.
 \begin{figure}[H]
     \centering
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{../../outputs/H3/C_C_fold1/predictions/predictions.png}
+        \includegraphics[width=\linewidth]{../../outputs/H3/C_C_fold1/predictions/predictions.eps}
         \caption{C$\to$C fold1 --- Dice \textbf{0.9329}}
     \end{subfigure}
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{../../outputs/H3/L_L_fold1/predictions/predictions.png}
+        \includegraphics[width=\linewidth]{../../outputs/H3/L_L_fold1/predictions/predictions.eps}
         \caption{L$\to$L fold1 --- Dice 0.9049}
     \end{subfigure}
     \caption{H3: LoRA fine-tuned predictions. Boundaries are tight vs.\ H1/H2.}
@@ -295,15 +295,15 @@ all                & 0.9453 & 0.8963 & 0.9490 & 0.9417 \\
 \begin{figure}[H]
     \centering
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/C_C_fold1_prompt_modebox/predictions/predictions.png}
+        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/C_C_fold1_prompt_modebox/predictions/predictions.eps}
         \caption{C$\to$C box --- 0.9476}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/C_C_fold1_prompt_modepoint/predictions/predictions.png}
+        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/C_C_fold1_prompt_modepoint/predictions/predictions.eps}
         \caption{C$\to$C point --- 0.9281}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/C_C_fold1_prompt_modeall/predictions/predictions.png}
+        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/C_C_fold1_prompt_modeall/predictions/predictions.eps}
         \caption{C$\to$C all --- 0.9453}
     \end{subfigure}
     \caption{H4 cadaver: prompt ablation (box / point / all).}
@@ -312,15 +312,15 @@ all                & 0.9453 & 0.8963 & 0.9490 & 0.9417 \\
 \begin{figure}[H]
     \centering
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/L_L_fold1_prompt_modebox/predictions/predictions.png}
+        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/L_L_fold1_prompt_modebox/predictions/predictions.eps}
         \caption{L$\to$L fold1 box --- 0.9593}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/L_L_fold1_prompt_modepoint/predictions/predictions.png}
+        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/L_L_fold1_prompt_modepoint/predictions/predictions.eps}
         \caption{L$\to$L fold1 point --- 0.9132}
     \end{subfigure}
     \begin{subfigure}[b]{0.32\linewidth}
-        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/L_L_fold1_prompt_modeall/predictions/predictions.png}
+        \includegraphics[width=\linewidth,height=5.5cm,keepaspectratio]{../../outputs/H4/L_L_fold1_prompt_modeall/predictions/predictions.eps}
         \caption{L$\to$L fold1 all --- 0.9580}
     \end{subfigure}
     \caption{H4 live fold1: prompt ablation (box / point / all).}
@@ -350,10 +350,10 @@ Dice $= 0.00$ (complete miss) & \multicolumn{2}{c}{see worst-frames grid} \\
 \end{center}
 
 % GENERATED BY: uv run python scripts/h5_failure_analysis.py
-% OUTPUT:       outputs/H5/analysis/dice_distributions.png
+% OUTPUT:       outputs/H5/analysis/dice_distributions.eps
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth,height=9cm,keepaspectratio]{../../outputs/H5/analysis/dice_distributions.png}
+    \includegraphics[width=\linewidth,height=9cm,keepaspectratio]{../../outputs/H5/analysis/dice_distributions.eps}
     \caption{H5: Left --- per-image Dice box plots across all prompt types (all folds).
              Box prompt consistently shifts the distribution upward with fewer low outliers.
              Right --- Dice histogram for text-prompt runs; 5.6\% of frames fall below 0.5.}
@@ -368,10 +368,10 @@ cadaver sessions that may have unusual lighting, instrument-absent frames, or
 edge cases not well represented in the training split.
 
 % GENERATED BY: uv run python scripts/h5_failure_analysis.py
-% OUTPUT:       outputs/H5/analysis/worst_frames_grid.png
+% OUTPUT:       outputs/H5/analysis/worst_frames_grid.eps
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth,height=8cm,keepaspectratio]{../../outputs/H5/analysis/worst_frames_grid.png}
+    \includegraphics[width=\linewidth,height=8cm,keepaspectratio]{../../outputs/H5/analysis/worst_frames_grid.eps}
     \caption{H5: Ten worst-performing frames (text prompt, Dice $< 0.5$).
              All are from cadaver sessions S09/S10. Common patterns: instrument fully
              out of frame, background-only frames, or heavy specular glare.
@@ -570,31 +570,8 @@ Metrics     & \texttt{outputs/\{H\}/\{run\}/metrics.csv} + \texttt{outputs/summa
     \item \texttt{image\_size} must be divisible by 14: use 336, 560, or 1008.
 \end{itemize}
 
-% ============================================================
-\section*{References}
-% ============================================================
-
-\begin{enumerate}[noitemsep, label={[\arabic*]}]
-    \item F.~Qin et al., ``Towards Better Surgical Instrument Segmentation.''
-          \textit{IEEE RA-L}, 2020.
-          \href{https://arxiv.org/abs/2002.10675}{arxiv:2002.10675}
-    \item ``HFRF-Net: Dual-task hierarchical feature refinement and fusion.''
-          \textit{Expert Systems with Applications}, 2025. [Dice $=0.9374$]
-    \item N.~Ravi et al., ``SAM~2: Segment Anything in Images and Videos.'' 2024.
-          \href{https://arxiv.org/abs/2408.00714}{arxiv:2408.00714}
-    \item C.~da Costa Rocha et al., ``Self-Supervised Surgical Tool Segmentation
-          using Kinematic Information.'' \textit{ICRA}, 2019.
-          \href{https://arxiv.org/abs/1902.04810}{arxiv:1902.04810}
-    \item L.~Sestini et al., ``SAF-IS: Spatial Annotation Free Framework for
-          Surgical Tool Segmentation.'' \textit{Medical Image Analysis}, 2025.
-          \href{https://arxiv.org/abs/2309.01723}{arxiv:2309.01723}
-    \item W.~Yue et al., ``SurgicalSAM: Efficient Class Promptable Segmentation.''
-          \textit{AAAI}, 2024.
-          \href{https://arxiv.org/abs/2308.08746}{arxiv:2308.08746}
-    \item Z.~Wu et al., ``Point Tracking and SAM for Surgical Instrument Segmentation.''
-          2024. \href{https://arxiv.org/abs/2403.08003}{arxiv:2403.08003}
-    \item H.~Liu et al., ``Surgical SAM~2: Real-time Segmentation via Frame Pruning.''
-          2024. \href{https://arxiv.org/abs/2408.07931}{arxiv:2408.07931}
-\end{enumerate}
+\nocite{qin2020uw,hfrfnet2025,ravi2024sam2,rocha2019kinematic,sestini2025safis,yue2024surgicalsam,wu2024pointtracking,liu2024surgsam2}
+\bibliographystyle{plain}
+\bibliography{../references}
 
 \end{document}
