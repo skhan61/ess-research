@@ -249,6 +249,85 @@ HFRF-Net (task-specific SOTA)                          & ---    & 0.9374 & 0.937
 across most folds, the contribution is demonstrated.
 
 % ============================================================
+\section{Future Direction: Reference-Based Prompt Generation}
+% ============================================================
+
+\subsection{Motivation from Current Experiments}
+
+Temporal propagation (H7) reduces the annotation requirement from one GT box
+per frame to one GT box per clip.
+The remaining dependency --- a single in-procedure box on frame~1 --- raises
+a natural follow-on question: can the spatial reference come from
+\textit{outside the body entirely}, eliminating all in-procedure annotation?
+
+The Week~3 experiments provide the empirical foundation for this question.
+If H7 shows that a single spatial reference per clip is sufficient to maintain
+high Dice across the clip, it establishes that \textbf{spatial reference
+quality, not quantity, is the operative factor}.
+This directly motivates replacing the in-procedure frame-1 box with an
+out-of-body instrument reference image.
+
+\subsection{The Reference-Image Idea}
+
+Before a procedure, the surgical instrument is photographed in a controlled
+setting --- outside the body, against a neutral background.
+This reference image is used to generate a visual template of the instrument.
+At inference, the model matches the template against each video frame to
+localise and segment the instrument --- no GT mask, no per-frame box,
+no in-procedure user input.
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Stage} & \textbf{Input} & \textbf{GT Required?} \\
+\midrule
+Pre-procedure  & Photo of instrument outside body & No \\
+Inference      & Video frames only                & No \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent This constitutes a fully annotation-free inference pipeline.
+The instrument identity is known prior to every procedure --- the reference
+photo costs seconds to acquire and is reusable across all cases using
+the same instrument.
+
+\subsection{Why This Is a Distinct Contribution}
+
+Reference-based segmentation exists in the natural image domain but has not
+been applied to surgical instruments using pre-procedure reference capture.
+The surgical setting is particularly well-suited: instruments are rigid,
+manufactured objects with consistent appearance, making cross-image matching
+more reliable than for deformable natural objects.
+
+The gap relative to prior work is:
+
+\begin{center}
+\begin{tabular}{p{3.5cm} C{2cm} C{2cm} C{2cm}}
+\toprule
+\textbf{Method} & \textbf{In-procedure GT?} & \textbf{Extra model?} & \textbf{Reference image?} \\
+\midrule
+Per-frame GT box (H4)              & Yes, every frame & No  & No \\
+Temporal propagation (H7)          & Yes, frame 1     & No  & No \\
+Reference-based (proposed)         & \textbf{No}      & No  & Pre-procedure only \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{What Is Needed}
+
+The current public dataset (UW-Sinus-Surgery-CL) contains only in-procedure
+frames --- no pre-procedure instrument photos exist.
+This direction therefore requires either:
+(a) the lab dataset, where controlled pre-procedure capture is feasible, or
+(b) a purpose-built collection pairing instrument reference images with
+    surgical video.
+
+The Week~3 experiments (H6--H8) provide the empirical argument that spatial
+reference reduces to a single initialisation --- the necessary precondition
+for claiming that an out-of-body reference photo is sufficient.
+
+% ============================================================
 \section{Repository}
 % ============================================================
 
